@@ -1,0 +1,8 @@
+openai
+requests
+huggingface_hub
+pygame
+pyyaml
+python-dotenv
+gradio
+Pillow
