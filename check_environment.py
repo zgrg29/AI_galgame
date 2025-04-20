@@ -1,6 +1,8 @@
 import importlib
 import os
 import sys
+import json
+import time
 from dotenv import load_dotenv
 from PIL import Image
 import requests
@@ -9,7 +11,7 @@ from io import BytesIO
 print("✅ 正在检查必要库的安装状态...\n")
 
 modules = [
-    "openai", "requests", "huggingface_hub", "pygame", "yaml", "dotenv", "gradio", "PIL"
+    "openai", "requests", "PyQt6", "yaml", "dotenv", "gradio", "PIL"
 ]
 
 for module in modules:
@@ -19,7 +21,7 @@ for module in modules:
     except ImportError:
         print(f"❌ 未安装或导入失败：{module}")
 
-# 特别检查 pyyaml 实际导入（有时 importlib 会误判）
+# 特别检查 pyyaml 实际导入
 try:
     import yaml
 except ImportError:
@@ -70,17 +72,15 @@ def send_generation_request(
     if files is None:
         files = {}
 
-    # Encode parameters
     image = params.pop("image", None)
     mask = params.pop("mask", None)
-    if image is not None and image != '':
+    if image:
         files["image"] = open(image, 'rb')
-    if mask is not None and mask != '':
+    if mask:
         files["mask"] = open(mask, 'rb')
-    if len(files)==0:
+    if not files:
         files["none"] = ''
 
-    # Send request
     print(f"Sending REST request to {host}...")
     response = requests.post(
         host,
@@ -90,80 +90,18 @@ def send_generation_request(
     )
     if not response.ok:
         raise Exception(f"HTTP {response.status_code}: {response.text}")
-
-    return response
-
-def send_async_generation_request(
-    host,
-    params,
-    files = None
-):
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {STABILITY_KEY}"
-    }
-
-    if files is None:
-        files = {}
-
-    # Encode parameters
-    image = params.pop("image", None)
-    mask = params.pop("mask", None)
-    if image is not None and image != '':
-        files["image"] = open(image, 'rb')
-    if mask is not None and mask != '':
-        files["mask"] = open(mask, 'rb')
-    if len(files)==0:
-        files["none"] = ''
-
-    # Send request
-    print(f"Sending REST request to {host}...")
-    response = requests.post(
-        host,
-        headers=headers,
-        files=files,
-        data=params
-    )
-    if not response.ok:
-        raise Exception(f"HTTP {response.status_code}: {response.text}")
-
-    # Process async response
-    response_dict = json.loads(response.text)
-    generation_id = response_dict.get("id", None)
-    assert generation_id is not None, "Expected id in response"
-
-    # Loop until result or timeout
-    timeout = int(os.getenv("WORKER_TIMEOUT", 500))
-    start = time.time()
-    status_code = 202
-    while status_code == 202:
-        print(f"Polling results at https://api.stability.ai/v2beta/results/{generation_id}")
-        response = requests.get(
-            f"https://api.stability.ai/v2beta/results/{generation_id}",
-            headers={
-                **headers,
-                "Accept": "*/*"
-            },
-        )
-
-        if not response.ok:
-            raise Exception(f"HTTP {response.status_code}: {response.text}")
-        status_code = response.status_code
-        time.sleep(10)
-        if time.time() - start > timeout:
-            raise Exception(f"Timeout after {timeout} seconds")
 
     return response
 
 print("🔄 尝试调用 Stability AI API（稳定模型）...")
 
 try:
-    prompt = "op art cat illusion red blue chromostereopsis maximum saturation" #@param {type:"string"}
-    negative_prompt = "" #@param {type:"string"}
-    aspect_ratio = "21:9" #@param ["21:9", "16:9", "3:2", "5:4", "1:1", "4:5", "2:3", "9:16", "9:21"]
-    style_preset = "None" #@param ["None", "3d-model", "analog-film", "anime", "cinematic", "comic-book", "digital-art", "enhance", "fantasy-art", "isometric", "line-art", "low-poly", "modeling-compound", "neon-punk", "origami", "photographic", "pixel-art", "tile-texture"]
-    seed = 0 #@param {type:"integer"}
-    output_format = "jpeg" #@param ["webp", "jpeg", "png"]
+    prompt = "op art cat illusion red blue chromostereopsis maximum saturation"
+    negative_prompt = ""
+    aspect_ratio = "21:9"
+    style_preset = "None"
+    seed = 0
+    output_format = "jpeg"
 
     host = f"https://api.stability.ai/v2beta/stable-image/generate/core"
 
@@ -186,113 +124,13 @@ try:
     if response.status_code == 200:
         print("✅ Stability AI 图像请求成功（内容为二进制图像）")
         image = Image.open(BytesIO(response.content))
-        image.save("test_output.png")  # 保存为文件更可靠
+        image.save("test_output.png")
         print("🖼️ 图像已保存为 test_output.png")
     elif response.status_code == 401:
         print("❌ 请求失败：未授权（401），请检查 API 密钥是否正确。")
     else:
         print(f"❌ 请求失败，状态码：{response.status_code}")
-        print("响应内容:", response.text[:200])  # 只打印前200字符避免刷屏
+        print("响应内容:", response.text[:200])
 
 except Exception as e:
     print(f"❌ 请求异常：{e}")
-
-#@title Define functions
-
-def send_generation_request(
-    host,
-    params,
-    files = None
-):
-    headers = {
-        "Accept": "image/*",
-        "Authorization": f"Bearer {STABILITY_KEY}"
-    }
-
-    if files is None:
-        files = {}
-
-    # Encode parameters
-    image = params.pop("image", None)
-    mask = params.pop("mask", None)
-    if image is not None and image != '':
-        files["image"] = open(image, 'rb')
-    if mask is not None and mask != '':
-        files["mask"] = open(mask, 'rb')
-    if len(files)==0:
-        files["none"] = ''
-
-    # Send request
-    print(f"Sending REST request to {host}...")
-    response = requests.post(
-        host,
-        headers=headers,
-        files=files,
-        data=params
-    )
-    if not response.ok:
-        raise Exception(f"HTTP {response.status_code}: {response.text}")
-
-    return response
-
-def send_async_generation_request(
-    host,
-    params,
-    files = None
-):
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {STABILITY_KEY}"
-    }
-
-    if files is None:
-        files = {}
-
-    # Encode parameters
-    image = params.pop("image", None)
-    mask = params.pop("mask", None)
-    if image is not None and image != '':
-        files["image"] = open(image, 'rb')
-    if mask is not None and mask != '':
-        files["mask"] = open(mask, 'rb')
-    if len(files)==0:
-        files["none"] = ''
-
-    # Send request
-    print(f"Sending REST request to {host}...")
-    response = requests.post(
-        host,
-        headers=headers,
-        files=files,
-        data=params
-    )
-    if not response.ok:
-        raise Exception(f"HTTP {response.status_code}: {response.text}")
-
-    # Process async response
-    response_dict = json.loads(response.text)
-    generation_id = response_dict.get("id", None)
-    assert generation_id is not None, "Expected id in response"
-
-    # Loop until result or timeout
-    timeout = int(os.getenv("WORKER_TIMEOUT", 500))
-    start = time.time()
-    status_code = 202
-    while status_code == 202:
-        print(f"Polling results at https://api.stability.ai/v2beta/results/{generation_id}")
-        response = requests.get(
-            f"https://api.stability.ai/v2beta/results/{generation_id}",
-            headers={
-                **headers,
-                "Accept": "*/*"
-            },
-        )
-
-        if not response.ok:
-            raise Exception(f"HTTP {response.status_code}: {response.text}")
-        status_code = response.status_code
-        time.sleep(10)
-        if time.time() - start > timeout:
-            raise Exception(f"Timeout after {timeout} seconds")
-
-    return response

@@ -1,0 +1,5 @@
+default_game_length: 60  # 默认游戏时长，单位分钟
+image_resolution: "512x768"
+character_defaults:
+  mood: "neutral"
+  style: "anime"
