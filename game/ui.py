@@ -62,7 +62,7 @@ class GalgameUI(QWidget):
 
     def start_game(self):
         self.settings = {
-            "duration": self.duration_input.text(),
+            "duration": int(self.duration_input.text()),
             "plot": self.plot_input.text(),
             "characters": []
         }
